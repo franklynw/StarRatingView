@@ -5,18 +5,22 @@
 //
 
 import SwiftUI
+import MapKit
 
 
 public struct StarRatingView: View {
     
-    private let rating: CGFloat
-    private let width: CGFloat?
-    private let starWidth: CGFloat?
+    private var width: CGFloat?
+    private var starWidth: CGFloat?
     
     // using the UIColors because they're brighter
     private var baseColor = Color(Self.defaultBaseColor)
     private var highlightedColor = Color(.yellow)
     private var outline: Outline?
+    private var spacing: CGFloat = 5
+    
+    @Binding private var userRating: Double
+    @State private var overallWidth: CGFloat = 0
     
     private static let defaultBaseColor = UIColor(white: 0.84, alpha: 1)
     
@@ -25,25 +29,44 @@ public struct StarRatingView: View {
         let weight: Font.Weight?
     }
     
+    @State private var dragLocation: CGPoint?
     
-    public init(rating: CGFloat, width: CGFloat? = nil) {
-        self.rating = rating
-        self.width = width
-        starWidth = width != nil ? width! / 25 * 4 : nil
+    
+    public init(rating: Double) {
+        _userRating = Binding<Double>(get: { rating }, set: { _ in })
+    }
+    
+    public init(rating: Binding<Double>) {
+        _userRating = rating
     }
     
     public var body: some View {
         
-        HStack {
-            ForEach(Array(1...5), id: \.self) { index in
-                ZStack {
-                    greyStar
-                    star(amountShown: CGFloat(index) > rating ? max(rating - CGFloat(index - 1), 0) : 1)
-                    starOutline(amountShown: CGFloat(index) > rating ? max(rating - CGFloat(index - 1), 0) : 1)
-                }
+        let tap = TapGesture().onEnded {
+            if let dragLocation = dragLocation {
+                userRating = dragLocation.x / overallWidth * 5
             }
         }
-        .frame(width: width, height: starWidth)
+        let drag = DragGesture(minimumDistance: 0).onChanged { value in
+            dragLocation = value.location
+        }.sequenced(before: tap)
+        
+        GeometryReader { proxy in
+            HStack(spacing: spacing) {
+                ForEach(Array(1...5), id: \.self) { index in
+                    ZStack {
+                        greyStar
+                        star(amountShown: CGFloat(index) > userRating ? max(userRating - CGFloat(index - 1), 0) : 1)
+                        starOutline(amountShown: CGFloat(index) > userRating ? max(userRating - CGFloat(index - 1), 0) : 1)
+                    }
+                }
+            }
+            Do {
+                overallWidth = proxy.size.width
+            }
+        }
+        .frame(width: width, height: actualStarWidth)
+        .gesture(drag)
     }
     
     @ViewBuilder
@@ -53,7 +76,7 @@ public struct StarRatingView: View {
             .resizable()
             .aspectRatio(1, contentMode: .fit)
             .foregroundColor(baseColor)
-            .frame(width: starWidth, height: starWidth, alignment: .leading)
+            .frame(width: actualStarWidth, height: actualStarWidth, alignment: .leading)
     }
     
     @ViewBuilder
@@ -63,7 +86,7 @@ public struct StarRatingView: View {
             .resizable()
             .aspectRatio(1, contentMode: .fit)
             .foregroundColor(highlightedColor)
-            .frame(width: starWidth, height: starWidth, alignment: .leading)
+            .frame(width: actualStarWidth, height: actualStarWidth, alignment: .leading)
             .mask(mask(amountShown: amountShown))
     }
     
@@ -75,14 +98,14 @@ public struct StarRatingView: View {
             .aspectRatio(1, contentMode: .fit)
             .font(Font.body.weight(outline?.weight ?? .light))
             .foregroundColor(outline?.color ?? highlightedColor)
-            .frame(width: starWidth, height: starWidth, alignment: .leading)
+            .frame(width: actualStarWidth, height: actualStarWidth, alignment: .leading)
             .mask(mask(amountShown: amountShown))
     }
     
     @ViewBuilder
     private func mask(amountShown: CGFloat) -> some View {
         
-        if let starWidth = starWidth {
+        if let starWidth = actualStarWidth {
             Rectangle()
                 .fill(Color.black)
                 .frame(width: starWidth * amountShown, height: starWidth, alignment: .leading)
@@ -95,10 +118,30 @@ public struct StarRatingView: View {
             }
         }
     }
+    
+    private var actualStarWidth: CGFloat? {
+        if let starWidth = starWidth {
+            return starWidth
+        } else {
+            return width != nil ? width! / 25 * 4 : nil
+        }
+    }
 }
 
 
 extension StarRatingView {
+    
+    public func width(_ width: CGFloat) -> Self {
+        var copy = self
+        copy.width = width
+        return copy
+    }
+    
+    public func starWidth(_ starWidth: CGFloat) -> Self {
+        var copy = self
+        copy.starWidth = starWidth
+        return copy
+    }
     
     public func baseColor(_ baseColor: Color) -> Self {
         var copy = self
@@ -116,5 +159,19 @@ extension StarRatingView {
         var copy = self
         copy.outline = Outline(color: color, weight: weight)
         return copy
+    }
+}
+
+
+fileprivate struct Do: View {
+    
+    init(action: @escaping () -> ()) {
+        DispatchQueue.main.async {
+            action()
+        }
+    }
+    
+    var body: some View {
+        EmptyView()
     }
 }
