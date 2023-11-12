@@ -18,6 +18,7 @@ public struct StarRatingView: View {
     private var highlightedColor = Color(.yellow)
     private var outline: Outline?
     private var spacing: CGFloat = 5
+    private var _disableDragToChange = false
     
     @Binding private var userRating: Double
     @State private var overallWidth: CGFloat = 0
@@ -48,6 +49,9 @@ public struct StarRatingView: View {
             }
         }
         let drag = DragGesture(minimumDistance: 0).onChanged { value in
+            guard !_disableDragToChange else {
+                return
+            }
             dragLocation = value.location
         }.sequenced(before: tap)
         
@@ -130,6 +134,12 @@ public struct StarRatingView: View {
 
 
 extension StarRatingView {
+    
+    public var disableDragToChange: Self {
+        var copy = self
+        copy._disableDragToChange = true
+        return copy
+    }
     
     public func width(_ width: CGFloat) -> Self {
         var copy = self
