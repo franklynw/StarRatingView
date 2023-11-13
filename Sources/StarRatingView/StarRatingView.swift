@@ -20,6 +20,7 @@ public struct StarRatingView: View {
     private var spacing: CGFloat = 5
     
     @Binding private var userRating: Double
+    @State private var privateUserRating: Double = 0 // because updating a @Binding var doesn't make the UI update
     @State private var overallWidth: CGFloat = 0
     
     private static let defaultBaseColor = UIColor(white: 0.84, alpha: 1)
@@ -28,8 +29,6 @@ public struct StarRatingView: View {
         let color: Color
         let weight: Font.Weight?
     }
-    
-    @State private var dragLocation: CGPoint?
     
     
     public init(rating: Double) {
@@ -42,22 +41,27 @@ public struct StarRatingView: View {
     
     public var body: some View {
         
-        let tap = TapGesture().onEnded {
-            if let dragLocation = dragLocation {
-                userRating = dragLocation.x / overallWidth * 5
+        let drag = DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                if (value.translation.width == 0 && value.translation.height == 0) || abs(value.translation.width) <= abs(value.translation.height) {
+                    return
+                }
+                privateUserRating = value.location.x / overallWidth * 5
             }
-        }
-        let drag = DragGesture(minimumDistance: 0).onChanged { value in
-            dragLocation = value.location
-        }.sequenced(before: tap)
+            .onEnded { value in
+                guard (value.translation.width == 0 && value.translation.height == 0) || abs(value.translation.width) > abs(value.translation.height) else {
+                    return
+                }
+                privateUserRating = value.location.x / overallWidth * 5
+            }
         
         GeometryReader { proxy in
             HStack(spacing: spacing) {
                 ForEach(Array(1...5), id: \.self) { index in
                     ZStack {
                         greyStar
-                        star(amountShown: CGFloat(index) > userRating ? max(userRating - CGFloat(index - 1), 0) : 1)
-                        starOutline(amountShown: CGFloat(index) > userRating ? max(userRating - CGFloat(index - 1), 0) : 1)
+                        star(amountShown: CGFloat(index) > privateUserRating ? max(privateUserRating - CGFloat(index - 1), 0) : 1)
+                        starOutline(amountShown: CGFloat(index) > privateUserRating ? max(privateUserRating - CGFloat(index - 1), 0) : 1)
                     }
                 }
             }
@@ -67,6 +71,12 @@ public struct StarRatingView: View {
         }
         .frame(width: width, height: actualStarWidth)
         .gesture(drag)
+        .onAppear {
+            privateUserRating = userRating
+        }
+        .onChange(of: privateUserRating) { rating in
+            userRating = rating
+        }
     }
     
     @ViewBuilder
